@@ -195,7 +195,6 @@ def generate_playlist():
         if not tracks:
             return jsonify({'error': 'No tracks found for this mood profile'}), 404
 
-        conn.start_transaction()
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
             VALUES (%s, %s, %s, NOW(), NOW())
