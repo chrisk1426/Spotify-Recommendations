@@ -1,3 +1,6 @@
+"""
+Python file for user login and authentication endpoints.
+"""
 from flask import Blueprint, request, jsonify
 from db import get_connection
 import bcrypt

@@ -1,3 +1,6 @@
+"""
+Python file for playlist endpoints.
+"""
 from flask import Blueprint, request, jsonify
 from db import get_connection
 
@@ -163,13 +166,11 @@ def generate_playlist():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Fetch the mood profile ranges
         cursor.execute("SELECT * FROM MoodProfiles WHERE MoodProfileID = %s", (mood_profile_id,))
         mood = cursor.fetchone()
         if not mood:
             return jsonify({'error': 'Mood profile not found'}), 404
 
-        # Find tracks matching the mood profile ranges ordered by popularity
         cursor.execute("""
             SELECT t.TrackID
             FROM Tracks t
@@ -194,7 +195,6 @@ def generate_playlist():
         if not tracks:
             return jsonify({'error': 'No tracks found for this mood profile'}), 404
 
-        # Create playlist and insert tracks in a single transaction
         conn.start_transaction()
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
