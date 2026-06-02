@@ -1,0 +1,9 @@
+{
+  "localhost": {
+    "host": "localhost",
+    "user": "spotify_api",
+    "password": "spotify_password",
+    "database": "spotify_explorer",
+    "secret_key": "change-me"
+  }
+}
