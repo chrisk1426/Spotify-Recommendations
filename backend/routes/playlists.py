@@ -50,13 +50,13 @@ def create_playlist():
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    try:
-        conn.start_transaction()
 
+    try:
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
             VALUES (%s, %s, %s, NOW(), NOW())
         """, (name, user_id, mood_profile_id))
+
         playlist_id = cursor.lastrowid
 
         for track_id in track_ids:
@@ -66,10 +66,13 @@ def create_playlist():
             """, (playlist_id, track_id))
 
         conn.commit()
+
         return jsonify({'message': 'Playlist created', 'playlist_id': playlist_id}), 201
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
@@ -86,6 +89,7 @@ def add_track(playlist_id):
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
+
     try:
         owned = check_playlist_owner(cursor, playlist_id, user_id)
         if owned is None:
@@ -93,19 +97,24 @@ def add_track(playlist_id):
         if not owned:
             return jsonify({'error': 'You do not own this playlist'}), 403
 
-        conn.start_transaction()
         cursor.execute("""
-            INSERT IGNORE INTO PlaylistTracks (PlaylistID, TrackID) VALUES (%s, %s)
+            INSERT IGNORE INTO PlaylistTracks (PlaylistID, TrackID)
+            VALUES (%s, %s)
         """, (playlist_id, track_id))
-        cursor.execute(
-            "UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s",
-            (playlist_id,)
-        )
+
+        cursor.execute("""
+            UPDATE Playlists SET UpdatedAt = NOW()
+            WHERE PlaylistID = %s
+        """, (playlist_id,))
+
         conn.commit()
+
         return jsonify({'message': 'Track added'}), 200
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
@@ -114,11 +123,13 @@ def add_track(playlist_id):
 @playlists_bp.route('/<int:playlist_id>/tracks/<int:track_id>', methods=['DELETE'])
 def remove_track(playlist_id, track_id):
     user_id = request.args.get('user_id', type=int)
+
     if not user_id:
         return jsonify({'error': 'user_id query parameter is required'}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
+
     try:
         owned = check_playlist_owner(cursor, playlist_id, user_id)
         if owned is None:
@@ -126,19 +137,24 @@ def remove_track(playlist_id, track_id):
         if not owned:
             return jsonify({'error': 'You do not own this playlist'}), 403
 
-        conn.start_transaction()
         cursor.execute("""
-            DELETE FROM PlaylistTracks WHERE PlaylistID = %s AND TrackID = %s
+            DELETE FROM PlaylistTracks
+            WHERE PlaylistID = %s AND TrackID = %s
         """, (playlist_id, track_id))
-        cursor.execute(
-            "UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s",
-            (playlist_id,)
-        )
+
+        cursor.execute("""
+            UPDATE Playlists SET UpdatedAt = NOW()
+            WHERE PlaylistID = %s
+        """, (playlist_id,))
+
         conn.commit()
+
         return jsonify({'message': 'Track removed'}), 200
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
@@ -147,11 +163,13 @@ def remove_track(playlist_id, track_id):
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
 def delete_playlist(playlist_id):
     user_id = request.args.get('user_id', type=int)
+
     if not user_id:
         return jsonify({'error': 'user_id query parameter is required'}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
+
     try:
         owned = check_playlist_owner(cursor, playlist_id, user_id)
         if owned is None:
@@ -159,14 +177,22 @@ def delete_playlist(playlist_id):
         if not owned:
             return jsonify({'error': 'You do not own this playlist'}), 403
 
-        conn.start_transaction()
-        cursor.execute("DELETE FROM PlaylistTracks WHERE PlaylistID = %s", (playlist_id,))
-        cursor.execute("DELETE FROM Playlists WHERE PlaylistID = %s", (playlist_id,))
+        cursor.execute("""
+            DELETE FROM PlaylistTracks WHERE PlaylistID = %s
+        """, (playlist_id,))
+
+        cursor.execute("""
+            DELETE FROM Playlists WHERE PlaylistID = %s
+        """, (playlist_id,))
+
         conn.commit()
+
         return jsonify({'message': 'Playlist deleted'}), 200
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
@@ -184,6 +210,7 @@ def update_playlist(playlist_id):
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
+
     try:
         owned = check_playlist_owner(cursor, playlist_id, user_id)
         if owned is None:
@@ -191,16 +218,22 @@ def update_playlist(playlist_id):
         if not owned:
             return jsonify({'error': 'You do not own this playlist'}), 403
 
-        conn.start_transaction()
         cursor.execute("""
-            UPDATE Playlists SET PlaylistName = %s, MoodProfileID = %s, UpdatedAt = NOW()
+            UPDATE Playlists
+            SET PlaylistName = %s,
+                MoodProfileID = %s,
+                UpdatedAt = NOW()
             WHERE PlaylistID = %s
         """, (name, mood_profile_id, playlist_id))
+
         conn.commit()
+
         return jsonify({'message': 'Playlist updated'}), 200
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
@@ -256,8 +289,6 @@ def generate_playlist():
 
         if not tracks:
             return jsonify({'error': 'No tracks found for this mood profile'}), 404
-
-        cursor.execute("START TRANSACTION")
 
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
