@@ -72,25 +72,27 @@ def get_recommendations(track_id):
                 af.Tempo,
                 GROUP_CONCAT(DISTINCT ar.ArtistName ORDER BY ar.ArtistName SEPARATOR ', ') AS Artists,
                 GROUP_CONCAT(DISTINCT g.GenreName   ORDER BY g.GenreName   SEPARATOR ', ') AS Genres,
-                -- audio similarity (weights sum to 0.90)
                 (
-                    0.25 * (1 - ABS(%s - af.Energy))                  +
-                    0.20 * (1 - ABS(%s - af.Danceability))            +
-                    0.20 * (1 - ABS(%s - af.Valence))                 +
-                    0.15 * (1 - ABS(%s - af.Acousticness))            +
-                    0.10 * (1 - ABS(%s / 250 - af.Tempo / 250))
-                ) * 0.90
-                -- genre overlap term (weight 0.10)
-                + IF(%s > 0,
-                    0.10 * (
-                        SELECT COUNT(*)
-                        FROM TrackGenres cg
-                        WHERE cg.TrackID = t.TrackID
-                          AND cg.GenreID IN (
-                              SELECT GenreID FROM TrackGenres WHERE TrackID = %s
-                          )
-                    ) / %s,
-                    0
+                    -- audio similarity (weights sum to 0.90)
+                    (
+                        0.25 * (1 - ABS(%s - af.Energy))                  +
+                        0.20 * (1 - ABS(%s - af.Danceability))            +
+                        0.20 * (1 - ABS(%s - af.Valence))                 +
+                        0.15 * (1 - ABS(%s - af.Acousticness))            +
+                        0.10 * (1 - ABS(%s / 250 - af.Tempo / 250))
+                    ) * 0.90
+                    -- genre overlap term (weight 0.10)
+                    + IF(%s > 0,
+                        0.10 * (
+                            SELECT COUNT(*)
+                            FROM TrackGenres cg
+                            WHERE cg.TrackID = t.TrackID
+                              AND cg.GenreID IN (
+                                  SELECT GenreID FROM TrackGenres WHERE TrackID = %s
+                              )
+                        ) / %s,
+                        0
+                    )
                 )
                 -- popularity multiplier: floor 0.70, ceiling 1.00
                 * (0.70 + 0.30 * t.Popularity / 100)

@@ -2,8 +2,7 @@
   add_indexes_constraints.sql
   ---------------------------
   Run once against spotify_explorer AFTER load_spotify_3nf.sql has been executed.
-  Safe to re-run: indexes use IF NOT EXISTS (MySQL 8.0+), constraints use
-  INFORMATION_SCHEMA guards.
+  Safe to re-run: indexes and constraints use INFORMATION_SCHEMA guards.
 
   Sections:
     1. Unique constraints
@@ -189,34 +188,73 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- 3. PERFORMANCE INDEXES (individual columns)
 -- ===========================================================================
 
+DROP PROCEDURE IF EXISTS add_index_if_missing;
+
+DELIMITER //
+CREATE PROCEDURE add_index_if_missing(
+  IN table_name_in VARCHAR(64),
+  IN index_name_in VARCHAR(64),
+  IN ddl_in TEXT
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = table_name_in
+      AND INDEX_NAME = index_name_in
+  ) THEN
+    SET @index_sql := ddl_in;
+    PREPARE index_stmt FROM @index_sql;
+    EXECUTE index_stmt;
+    DEALLOCATE PREPARE index_stmt;
+  ELSE
+    SELECT CONCAT(index_name_in, ' already exists') AS info;
+  END IF;
+END//
+DELIMITER ;
+
 -- Tracks.Popularity DESC — used in ORDER BY across almost every route
-ALTER TABLE Tracks ADD INDEX IF NOT EXISTS idx_tracks_popularity (Popularity DESC);
+CALL add_index_if_missing('Tracks', 'idx_tracks_popularity',
+  'ALTER TABLE Tracks ADD INDEX idx_tracks_popularity (Popularity DESC)');
 
 -- Tracks.AlbumID — FK join in every full-detail track query
-ALTER TABLE Tracks ADD INDEX IF NOT EXISTS idx_tracks_albumid (AlbumID);
+CALL add_index_if_missing('Tracks', 'idx_tracks_albumid',
+  'ALTER TABLE Tracks ADD INDEX idx_tracks_albumid (AlbumID)');
 
 -- Playlists.UserID — WHERE UserID = ? in GET /playlists/user/<id>
-ALTER TABLE Playlists ADD INDEX IF NOT EXISTS idx_playlists_userid (UserID);
+CALL add_index_if_missing('Playlists', 'idx_playlists_userid',
+  'ALTER TABLE Playlists ADD INDEX idx_playlists_userid (UserID)');
 
 -- Playlists.MoodProfileID — FK join for mood-based playlist queries
-ALTER TABLE Playlists ADD INDEX IF NOT EXISTS idx_playlists_moodprofileid (MoodProfileID);
+CALL add_index_if_missing('Playlists', 'idx_playlists_moodprofileid',
+  'ALTER TABLE Playlists ADD INDEX idx_playlists_moodprofileid (MoodProfileID)');
 
 -- TrackArtists.ArtistID — reverse lookup: all tracks by an artist
-ALTER TABLE TrackArtists ADD INDEX IF NOT EXISTS idx_trackartists_artistid (ArtistID);
+CALL add_index_if_missing('TrackArtists', 'idx_trackartists_artistid',
+  'ALTER TABLE TrackArtists ADD INDEX idx_trackartists_artistid (ArtistID)');
 
 -- TrackGenres.GenreID — reverse lookup: all tracks in a genre
-ALTER TABLE TrackGenres ADD INDEX IF NOT EXISTS idx_trackgenres_genreid (GenreID);
+CALL add_index_if_missing('TrackGenres', 'idx_trackgenres_genreid',
+  'ALTER TABLE TrackGenres ADD INDEX idx_trackgenres_genreid (GenreID)');
 
 -- RecommendationHistory — fetch history by user, by track, by date
-ALTER TABLE RecommendationHistory ADD INDEX IF NOT EXISTS idx_rechistory_userid (UserID);
-ALTER TABLE RecommendationHistory ADD INDEX IF NOT EXISTS idx_rechistory_trackid (TrackID);
-ALTER TABLE RecommendationHistory ADD INDEX IF NOT EXISTS idx_rechistory_generatedat (GeneratedAt DESC);
+CALL add_index_if_missing('RecommendationHistory', 'idx_rechistory_userid',
+  'ALTER TABLE RecommendationHistory ADD INDEX idx_rechistory_userid (UserID)');
+CALL add_index_if_missing('RecommendationHistory', 'idx_rechistory_trackid',
+  'ALTER TABLE RecommendationHistory ADD INDEX idx_rechistory_trackid (TrackID)');
+CALL add_index_if_missing('RecommendationHistory', 'idx_rechistory_generatedat',
+  'ALTER TABLE RecommendationHistory ADD INDEX idx_rechistory_generatedat (GeneratedAt DESC)');
 
 -- AudioFeatures individual columns — single-column analytics queries
-ALTER TABLE AudioFeatures ADD INDEX IF NOT EXISTS idx_af_energy       (Energy);
-ALTER TABLE AudioFeatures ADD INDEX IF NOT EXISTS idx_af_danceability (Danceability);
-ALTER TABLE AudioFeatures ADD INDEX IF NOT EXISTS idx_af_valence      (Valence);
-ALTER TABLE AudioFeatures ADD INDEX IF NOT EXISTS idx_af_tempo        (Tempo);
+CALL add_index_if_missing('AudioFeatures', 'idx_af_energy',
+  'ALTER TABLE AudioFeatures ADD INDEX idx_af_energy (Energy)');
+CALL add_index_if_missing('AudioFeatures', 'idx_af_danceability',
+  'ALTER TABLE AudioFeatures ADD INDEX idx_af_danceability (Danceability)');
+CALL add_index_if_missing('AudioFeatures', 'idx_af_valence',
+  'ALTER TABLE AudioFeatures ADD INDEX idx_af_valence (Valence)');
+CALL add_index_if_missing('AudioFeatures', 'idx_af_tempo',
+  'ALTER TABLE AudioFeatures ADD INDEX idx_af_tempo (Tempo)');
 
 -- ===========================================================================
 -- 4. COMPOSITE INDEX for mood / generate-playlist range filtering
@@ -225,8 +263,10 @@ ALTER TABLE AudioFeatures ADD INDEX IF NOT EXISTS idx_af_tempo        (Tempo);
 --    leading column for typical mood queries.
 -- ===========================================================================
 
-ALTER TABLE AudioFeatures
-  ADD INDEX IF NOT EXISTS idx_af_mood_composite (Energy, Danceability, Valence, Tempo);
+CALL add_index_if_missing('AudioFeatures', 'idx_af_mood_composite',
+  'ALTER TABLE AudioFeatures ADD INDEX idx_af_mood_composite (Energy, Danceability, Valence, Tempo)');
+
+DROP PROCEDURE IF EXISTS add_index_if_missing;
 
 -- ===========================================================================
 -- Verification
@@ -249,4 +289,5 @@ SELECT
 FROM INFORMATION_SCHEMA.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
   AND INDEX_NAME LIKE 'idx_%'
+GROUP BY TABLE_NAME, INDEX_NAME
 ORDER BY TABLE_NAME, INDEX_NAME;

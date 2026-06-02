@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spotify-explorer-tui"
+version = "0.1.0"
+description = "Textual frontend for the Spotify recommendations backend."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=8.2.7,<9",
+]
+
+[project.scripts]
+spotify-explorer-tui = "app:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src"]
+sources = ["src"]

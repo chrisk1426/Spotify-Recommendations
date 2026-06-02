@@ -1,0 +1,155 @@
+CREATE DATABASE IF NOT EXISTS spotify_explorer
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+
+USE spotify_explorer;
+
+CREATE TABLE IF NOT EXISTS Users (
+  UserID INT NOT NULL AUTO_INCREMENT,
+  UserName VARCHAR(100) NOT NULL,
+  Password VARCHAR(255) NOT NULL,
+  IsAdmin TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (UserID)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS MoodProfiles (
+  MoodProfileID INT NOT NULL AUTO_INCREMENT,
+  MoodProfileName VARCHAR(100) NOT NULL,
+  MinDanceability FLOAT NULL,
+  MaxDanceability FLOAT NULL,
+  MinEnergy FLOAT NULL,
+  MaxEnergy FLOAT NULL,
+  MinLoudness FLOAT NULL,
+  MaxLoudness FLOAT NULL,
+  MinSpeechiness FLOAT NULL,
+  MaxSpeechiness FLOAT NULL,
+  MinAcousticness FLOAT NULL,
+  MaxAcousticness FLOAT NULL,
+  MinInstrumentalness FLOAT NULL,
+  MaxInstrumentalness FLOAT NULL,
+  MinLiveness FLOAT NULL,
+  MaxLiveness FLOAT NULL,
+  MinValence FLOAT NULL,
+  MaxValence FLOAT NULL,
+  MinTempo FLOAT NULL,
+  MaxTempo FLOAT NULL,
+  PRIMARY KEY (MoodProfileID)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS Albums (
+  AlbumID INT NOT NULL AUTO_INCREMENT,
+  AlbumName VARCHAR(512) NOT NULL,
+  PRIMARY KEY (AlbumID)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS Artists (
+  ArtistID INT NOT NULL AUTO_INCREMENT,
+  ArtistName VARCHAR(255) NOT NULL,
+  PRIMARY KEY (ArtistID)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS Genres (
+  GenreID INT NOT NULL AUTO_INCREMENT,
+  GenreName VARCHAR(100) NOT NULL,
+  PRIMARY KEY (GenreID)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS Tracks (
+  TrackID INT NOT NULL AUTO_INCREMENT,
+  SpotifyTrackID VARCHAR(32) NULL,
+  TrackName VARCHAR(512) NOT NULL,
+  Duration INT NULL,
+  Popularity INT NULL,
+  IsExplicit TINYINT(1) NOT NULL DEFAULT 0,
+  AlbumID INT NULL,
+  PRIMARY KEY (TrackID),
+  CONSTRAINT fk_tracks_albums
+    FOREIGN KEY (AlbumID) REFERENCES Albums (AlbumID)
+    ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS AudioFeatures (
+  TrackID INT NOT NULL,
+  Danceability FLOAT NULL,
+  Energy FLOAT NULL,
+  `Key` INT NULL,
+  Loudness FLOAT NULL,
+  `Mode` INT NULL,
+  Speechiness FLOAT NULL,
+  Acousticness FLOAT NULL,
+  Instrumentalness FLOAT NULL,
+  Liveness FLOAT NULL,
+  Valence FLOAT NULL,
+  Tempo FLOAT NULL,
+  TimeSignature INT NULL,
+  PRIMARY KEY (TrackID),
+  CONSTRAINT fk_audiofeatures_tracks
+    FOREIGN KEY (TrackID) REFERENCES Tracks (TrackID)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS TrackArtists (
+  TrackID INT NOT NULL,
+  ArtistID INT NOT NULL,
+  PRIMARY KEY (TrackID, ArtistID),
+  CONSTRAINT fk_trackartists_tracks
+    FOREIGN KEY (TrackID) REFERENCES Tracks (TrackID)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_trackartists_artists
+    FOREIGN KEY (ArtistID) REFERENCES Artists (ArtistID)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS TrackGenres (
+  TrackID INT NOT NULL,
+  GenreID INT NOT NULL,
+  PRIMARY KEY (TrackID, GenreID),
+  CONSTRAINT fk_trackgenres_tracks
+    FOREIGN KEY (TrackID) REFERENCES Tracks (TrackID)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_trackgenres_genres
+    FOREIGN KEY (GenreID) REFERENCES Genres (GenreID)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS Playlists (
+  PlaylistID INT NOT NULL AUTO_INCREMENT,
+  PlaylistName VARCHAR(255) NOT NULL,
+  UserID INT NOT NULL,
+  MoodProfileID INT NULL,
+  CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (PlaylistID),
+  CONSTRAINT fk_playlists_users
+    FOREIGN KEY (UserID) REFERENCES Users (UserID)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_playlists_moodprofiles
+    FOREIGN KEY (MoodProfileID) REFERENCES MoodProfiles (MoodProfileID)
+    ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS PlaylistTracks (
+  PlaylistID INT NOT NULL,
+  TrackID INT NOT NULL,
+  PRIMARY KEY (PlaylistID, TrackID),
+  CONSTRAINT fk_playlisttracks_playlists
+    FOREIGN KEY (PlaylistID) REFERENCES Playlists (PlaylistID)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_playlisttracks_tracks
+    FOREIGN KEY (TrackID) REFERENCES Tracks (TrackID)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS RecommendationHistory (
+  HistoryID INT NOT NULL AUTO_INCREMENT,
+  UserID INT NOT NULL,
+  TrackID INT NOT NULL,
+  GeneratedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (HistoryID),
+  CONSTRAINT fk_rechistory_users
+    FOREIGN KEY (UserID) REFERENCES Users (UserID)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_rechistory_tracks
+    FOREIGN KEY (TrackID) REFERENCES Tracks (TrackID)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
