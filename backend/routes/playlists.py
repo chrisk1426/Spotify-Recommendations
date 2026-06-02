@@ -158,16 +158,25 @@ def update_playlist(playlist_id):
 @playlists_bp.route('/generate', methods=['POST'])
 def generate_playlist():
     data = request.get_json()
+
     user_id = data.get('user_id')
     mood_profile_id = data.get('mood_profile_id')
     name = data.get('name')
     limit = data.get('limit', 20)
 
+    if not user_id or not name:
+        return jsonify({'error': 'user_id and name are required'}), 400
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
+
     try:
-        cursor.execute("SELECT * FROM MoodProfiles WHERE MoodProfileID = %s", (mood_profile_id,))
+        cursor.execute(
+            "SELECT * FROM MoodProfiles WHERE MoodProfileID = %s",
+            (mood_profile_id,)
+        )
         mood = cursor.fetchone()
+
         if not mood:
             return jsonify({'error': 'Mood profile not found'}), 404
 
@@ -177,28 +186,33 @@ def generate_playlist():
             JOIN AudioFeatures af ON af.TrackID = t.TrackID
             WHERE
                 af.Danceability BETWEEN %s AND %s AND
-                af.Energy BETWEEN %s AND %s AND
-                af.Loudness BETWEEN %s AND %s AND
-                af.Valence BETWEEN %s AND %s AND
-                af.Tempo BETWEEN %s AND %s
+                af.Energy       BETWEEN %s AND %s AND
+                af.Loudness     BETWEEN %s AND %s AND
+                af.Valence      BETWEEN %s AND %s AND
+                af.Tempo        BETWEEN %s AND %s
             ORDER BY t.Popularity DESC
             LIMIT %s
         """, (
             mood['MinDanceability'], mood['MaxDanceability'],
-            mood['MinEnergy'], mood['MaxEnergy'],
-            mood['MinLoudness'], mood['MaxLoudness'],
-            mood['MinValence'], mood['MaxValence'],
-            mood['MinTempo'], mood['MaxTempo'],
+            mood['MinEnergy'],       mood['MaxEnergy'],
+            mood['MinLoudness'],     mood['MaxLoudness'],
+            mood['MinValence'],      mood['MaxValence'],
+            mood['MinTempo'],        mood['MaxTempo'],
             limit
         ))
+
         tracks = cursor.fetchall()
+
         if not tracks:
             return jsonify({'error': 'No tracks found for this mood profile'}), 404
+
+        cursor.execute("START TRANSACTION")
 
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
             VALUES (%s, %s, %s, NOW(), NOW())
         """, (name, user_id, mood_profile_id))
+
         playlist_id = cursor.lastrowid
 
         for track in tracks:
@@ -208,10 +222,17 @@ def generate_playlist():
             """, (playlist_id, track['TrackID']))
 
         conn.commit()
-        return jsonify({'message': 'Playlist generated', 'playlist_id': playlist_id, 'track_count': len(tracks)}), 201
+
+        return jsonify({
+            'message': 'Playlist generated',
+            'playlist_id': playlist_id,
+            'track_count': len(tracks)
+        }), 201
+
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
+
     finally:
         cursor.close()
         conn.close()
