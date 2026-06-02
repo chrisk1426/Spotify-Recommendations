@@ -2,7 +2,7 @@
 
 A small Flask + MySQL backend for exploring a Kaggle Spotify dataset, plus a Textual terminal UI in `frontend/`.
 
-The app can search tracks, show track details, recommend similar songs, search by mood profiles, create/generate playlists, view recommendation history, browse artists/albums/genres, and show simple analytics.
+The app can search tracks, show track details, recommend similar songs, search by mood profiles, create/generate/update playlists, view recommendation history, browse artists/albums/genres, manage track and artist records, and show simple analytics.
 
 ## Project structure
 

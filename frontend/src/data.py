@@ -110,9 +110,17 @@ def clear_recommendation_history(user_id: int) -> dict[str, Any]:
     return request_json("DELETE", f"/recommendations/history/{user_id}")
 
 
+def clear_all_recommendation_history(user_id: int) -> dict[str, Any]:
+    return request_json("DELETE", "/recommendations/history/all", {"user_id": user_id})
+
+
 def list_mood_profiles() -> list[MoodProfile]:
     rows = request_json("GET", "/mood/profiles")
     return [mood_from_row(row) for row in rows]
+
+
+def get_mood_profile(mood_profile_id: int) -> MoodProfile:
+    return mood_from_row(request_json("GET", f"/mood/profiles/{mood_profile_id}"))
 
 
 def search_mood(mood_name: str, limit: int = 50) -> tuple[MoodProfile | None, list[Track]]:
@@ -186,6 +194,19 @@ def delete_playlist(playlist_id: int, user_id: int) -> dict[str, Any]:
     return request_json("DELETE", f"/playlists/{playlist_id}", {"user_id": user_id})
 
 
+def update_playlist(
+    playlist_id: int,
+    user_id: int,
+    name: str,
+    mood_profile_id: int | None = None,
+) -> dict[str, Any]:
+    return request_json(
+        "PUT",
+        f"/playlists/{playlist_id}",
+        payload={"user_id": user_id, "name": name, "mood_profile_id": mood_profile_id},
+    )
+
+
 def generate_playlist(user_id: int, mood_profile_id: int, name: str, limit: int = 20) -> dict[str, Any]:
     return request_json(
         "POST",
@@ -231,8 +252,24 @@ def get_artist(artist_id: int) -> dict[str, Any]:
     return request_json("GET", f"/artists/{artist_id}")
 
 
+def create_artist(artist_name: str) -> dict[str, Any]:
+    return request_json("POST", "/artists/", payload={"artist_name": artist_name})
+
+
+def update_artist(artist_id: int, artist_name: str) -> dict[str, Any]:
+    return request_json("PUT", f"/artists/{artist_id}", payload={"artist_name": artist_name})
+
+
+def delete_artist(artist_id: int, force: bool = False) -> dict[str, Any]:
+    return request_json("DELETE", f"/artists/{artist_id}", {"force": str(force).lower()})
+
+
 def list_albums(query: str = "", limit: int = 50) -> list[dict[str, Any]]:
     return request_json("GET", "/albums/", {"q": query, "limit": limit})
+
+
+def get_album(album_id: int) -> dict[str, Any]:
+    return request_json("GET", f"/albums/{album_id}")
 
 
 def get_album_tracks(album_id: int) -> list[Track]:
@@ -247,6 +284,18 @@ def list_genres() -> list[dict[str, Any]]:
 def get_genre_tracks(genre_id: int) -> list[Track]:
     rows = request_json("GET", f"/genres/{genre_id}/tracks")
     return [track_from_row(row) for row in rows]
+
+
+def create_track(payload: dict[str, Any]) -> dict[str, Any]:
+    return request_json("POST", "/tracks/", payload=payload)
+
+
+def update_track(track_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    return request_json("PUT", f"/tracks/{track_id}", payload=payload)
+
+
+def delete_track(track_id: int) -> dict[str, Any]:
+    return request_json("DELETE", f"/tracks/{track_id}")
 
 
 def track_from_row(row: dict[str, Any]) -> Track:

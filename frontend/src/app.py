@@ -59,6 +59,7 @@ VIEW_IDS = {
     "playlists": "Playlists",
     "analytics": "Analytics",
     "catalog": "Catalog",
+    "management": "Data Management",
     "details": "Track Details",
 }
 
@@ -92,6 +93,7 @@ class SpotifyExplorerApp(App[None]):
         Binding("6,a", "show_view('analytics')", "Analytics", priority=True),
         Binding("7,c", "show_view('catalog')", "Catalog", priority=True),
         Binding("8,d", "show_view('details')", "Details", priority=True),
+        Binding("9,g", "show_view('management')", "Manage", priority=True),
         Binding("q", "quit", "Quit", priority=True),
     ]
 
@@ -316,6 +318,7 @@ class SpotifyExplorerApp(App[None]):
                     Option("6  Analytics", id="analytics"),
                     Option("7  Catalog", id="catalog"),
                     Option("8  Track Details", id="details"),
+                    Option("9  Data Management", id="management"),
                     id="nav",
                 )
             with Horizontal(id="main-zone"):
@@ -331,6 +334,7 @@ class SpotifyExplorerApp(App[None]):
                     yield from self._analytics_screen()
                     yield from self._catalog_screen()
                     yield from self._details_screen()
+                    yield from self._management_screen()
                 # The inspector stays visible no matter which main screen is
                 # active. It gives users context about the selected track.
                 yield from self._inspector()
@@ -372,6 +376,7 @@ class SpotifyExplorerApp(App[None]):
                 yield Input(value="10", placeholder="Limit", id="recommendation-limit")
                 yield Button("Load", id="load-recommendations", variant="primary")
                 yield Button("Clear History", id="clear-history")
+                yield Button("Clear All", id="clear-all-history")
             yield Static(id="recommendation-status", classes="card")
             yield DataTable(id="recommendation-results", zebra_stripes=True)
 
@@ -401,6 +406,7 @@ class SpotifyExplorerApp(App[None]):
                 yield Button("Generate", id="generate-playlist")
             with Horizontal(classes="controls"):
                 yield Button("Refresh", id="refresh-playlists")
+                yield Button("Update Playlist", id="update-playlist")
                 yield Button("Add Selected Track", id="add-selected-track")
                 yield Button("Remove Row Track", id="remove-playlist-track")
                 yield Button("Delete Playlist", id="delete-playlist")
@@ -436,6 +442,7 @@ class SpotifyExplorerApp(App[None]):
             with Horizontal(classes="controls"):
                 yield Input(placeholder="Artist or album search", id="catalog-query")
                 yield Button("Refresh", id="refresh-catalog", variant="primary")
+            yield Static(id="catalog-detail", classes="card")
             with TabbedContent(initial="artists-tab"):
                 with TabPane("Artists", id="artists-tab"):
                     yield DataTable(id="artists-table", zebra_stripes=True)
@@ -458,6 +465,62 @@ class SpotifyExplorerApp(App[None]):
                     yield DataTable(id="feature-table", zebra_stripes=True)
                 with TabPane("Similar tracks", id="detail-similar"):
                     yield DataTable(id="detail-similar-table", zebra_stripes=True)
+
+    def _management_screen(self) -> ComposeResult:
+        # This page covers the backend write endpoints that do not fit naturally
+        # into search, recommendations, playlists, or analytics. These actions
+        # mutate database rows, so the controls are grouped away from the normal
+        # browsing screens.
+        with VerticalScroll(id="management", classes="screen-panel"):
+            yield Static("Data Management", classes="section-title")
+            yield Static(
+                "Use this screen for backend CRUD endpoints. For normal browsing, use Search and Catalog.",
+                id="management-status",
+                classes="card",
+            )
+            with TabbedContent(initial="artist-admin-tab"):
+                with TabPane("Artists", id="artist-admin-tab"):
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Artist ID", id="artist-id")
+                        yield Input(placeholder="Artist name", id="artist-name")
+                        yield Button("Create", id="create-artist", variant="primary")
+                        yield Button("Update", id="update-artist")
+                        yield Button("Delete", id="delete-artist")
+                        yield Button("Force Delete", id="force-delete-artist")
+                    yield DataTable(id="artist-admin-table", zebra_stripes=True)
+                with TabPane("Tracks", id="track-admin-tab"):
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Track ID", id="track-id")
+                        yield Input(placeholder="Track name", id="track-name")
+                        yield Input(placeholder="Spotify track ID", id="track-spotify-id")
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Album ID", id="track-album-id")
+                        yield Input(placeholder="Duration ms", id="track-duration")
+                        yield Input(placeholder="Popularity 0-100", id="track-popularity")
+                        yield Input(placeholder="Explicit true/false", id="track-explicit")
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Artist IDs, comma-separated", id="track-artist-ids")
+                        yield Input(placeholder="Genre IDs, comma-separated", id="track-genre-ids")
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Danceability", id="track-danceability")
+                        yield Input(placeholder="Energy", id="track-energy")
+                        yield Input(placeholder="Valence", id="track-valence")
+                        yield Input(placeholder="Acousticness", id="track-acousticness")
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Speechiness", id="track-speechiness")
+                        yield Input(placeholder="Instrumentalness", id="track-instrumentalness")
+                        yield Input(placeholder="Liveness", id="track-liveness")
+                        yield Input(placeholder="Tempo", id="track-tempo")
+                    with Horizontal(classes="controls"):
+                        yield Input(placeholder="Loudness", id="track-loudness")
+                        yield Input(placeholder="Key", id="track-key")
+                        yield Input(placeholder="Mode", id="track-mode")
+                        yield Input(placeholder="Time signature", id="track-time-signature")
+                    with Horizontal(classes="controls"):
+                        yield Button("Load Selected", id="load-selected-track-form")
+                        yield Button("Create Track", id="create-track", variant="primary")
+                        yield Button("Update Track", id="update-track")
+                        yield Button("Delete Track", id="delete-track")
 
     def _inspector(self) -> ComposeResult:
         # The inspector is a persistent side panel. It is useful in a terminal
@@ -517,6 +580,7 @@ class SpotifyExplorerApp(App[None]):
         self._table("#bpm-table").add_columns("Range", "Tracks")
         self._table("#dance-table").add_columns("ID", "Track", "Popularity", "Dance", "Energy", "Valence")
         self._table("#artists-table").add_columns("ID", "Artist", "Tracks")
+        self._table("#artist-admin-table").add_columns("ID", "Artist", "Tracks")
         self._table("#albums-table").add_columns("ID", "Album", "Tracks")
         self._table("#genres-table").add_columns("ID", "Genre")
         self._table("#catalog-tracks").add_columns("ID", "Track", "Artist", "Album", "Pop")
@@ -563,6 +627,42 @@ class SpotifyExplorerApp(App[None]):
             return default
         return max(minimum, min(maximum, value))
 
+    def _optional_int_input(self, selector: str) -> int | None:
+        value = self.query_one(selector, Input).value.strip()
+        if not value:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            self.query_one("#management-status", Static).update(f"{selector} must be an integer.")
+            return None
+
+    def _optional_float_input(self, selector: str) -> float | None:
+        value = self.query_one(selector, Input).value.strip()
+        if not value:
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            self.query_one("#management-status", Static).update(f"{selector} must be a number.")
+            return None
+
+    def _parse_int_list(self, selector: str) -> list[int] | None:
+        value = self.query_one(selector, Input).value.strip()
+        if not value:
+            return None
+        try:
+            return [int(part.strip()) for part in value.split(",") if part.strip()]
+        except ValueError:
+            self.query_one("#management-status", Static).update(f"{selector} must contain comma-separated integers.")
+            return None
+
+    def _set_input_if_exists(self, selector: str, value: str) -> None:
+        try:
+            self.query_one(selector, Input).value = value
+        except NoMatches:
+            pass
+
     def _make_row_key(self, prefix: str, row_id: int) -> str:
         # Textual row keys need to be unique. We encode the record type and ID
         # in the key, then append a counter so duplicate TrackIDs can appear in
@@ -606,6 +706,13 @@ class SpotifyExplorerApp(App[None]):
         self._set_select_options("#playlist-mood", [("No mood", 0), *mood_options])
         self._refresh_mood_profile_copy()
 
+    def _replace_mood_profile(self, profile: MoodProfile) -> None:
+        for index, existing in enumerate(self.mood_profiles):
+            if existing.mood_id == profile.mood_id:
+                self.mood_profiles[index] = profile
+                return
+        self.mood_profiles.append(profile)
+
     def _set_select_options(self, selector: str, options: list[tuple[str, int]]) -> None:
         # Textual Select options are (label, value) pairs. When the option list
         # changes, we preserve the old value if it still exists. Otherwise we
@@ -632,6 +739,122 @@ class SpotifyExplorerApp(App[None]):
 
     def _genre_text(self, track: Track) -> str:
         return ", ".join(track.genres) if track.genres else ""
+
+    def _delete_artist(self, force: bool) -> None:
+        artist_id = self._optional_int_input("#artist-id")
+        if artist_id is None:
+            self.query_one("#management-status", Static).update("Artist ID is required.")
+            return
+        response = self._safe("Delete artist", lambda: data.delete_artist(artist_id, force), None)
+        if response:
+            self.query_one("#management-status", Static).update(response.get("message", "Artist deleted."))
+            self.query_one("#artist-id", Input).value = ""
+            self.query_one("#artist-name", Input).value = ""
+            self._refresh_catalog()
+
+    def _track_form_payload(self, require_create_fields: bool) -> dict[str, Any] | None:
+        payload: dict[str, Any] = {}
+        track_name = self.query_one("#track-name", Input).value.strip()
+        spotify_track_id = self.query_one("#track-spotify-id", Input).value.strip()
+        explicit = self.query_one("#track-explicit", Input).value.strip()
+
+        if track_name:
+            payload["track_name"] = track_name
+        if spotify_track_id:
+            payload["spotify_track_id"] = spotify_track_id
+
+        for selector, key in (
+            ("#track-album-id", "album_id"),
+            ("#track-duration", "duration"),
+            ("#track-popularity", "popularity"),
+        ):
+            value = self._optional_int_input(selector)
+            if value is not None:
+                payload[key] = value
+
+        if explicit:
+            payload["is_explicit"] = explicit.lower() in {"1", "true", "yes", "y"}
+
+        for selector, key in (("#track-artist-ids", "artist_ids"), ("#track-genre-ids", "genre_ids")):
+            values = self._parse_int_list(selector)
+            if values is not None:
+                payload[key] = values
+
+        audio_features: dict[str, Any] = {}
+        for selector, key in (
+            ("#track-danceability", "danceability"),
+            ("#track-energy", "energy"),
+            ("#track-valence", "valence"),
+            ("#track-acousticness", "acousticness"),
+            ("#track-speechiness", "speechiness"),
+            ("#track-instrumentalness", "instrumentalness"),
+            ("#track-liveness", "liveness"),
+            ("#track-tempo", "tempo"),
+            ("#track-loudness", "loudness"),
+        ):
+            value = self._optional_float_input(selector)
+            if value is not None:
+                audio_features[key] = value
+
+        for selector, key in (
+            ("#track-key", "key"),
+            ("#track-mode", "mode"),
+            ("#track-time-signature", "time_signature"),
+        ):
+            value = self._optional_int_input(selector)
+            if value is not None:
+                audio_features[key] = value
+
+        if audio_features:
+            payload["audio_features"] = audio_features
+
+        if require_create_fields and (not payload.get("track_name") or payload.get("album_id") is None):
+            self.query_one("#management-status", Static).update("Track name and album ID are required to create a track.")
+            return None
+        return payload
+
+    def _fill_track_form(self, track: Track) -> None:
+        self.query_one("#track-id", Input).value = str(track.track_id)
+        self.query_one("#track-name", Input).value = track.name
+        self.query_one("#track-spotify-id", Input).value = track.spotify_track_id or ""
+        self.query_one("#track-duration", Input).value = str(track.duration_ms or "")
+        self.query_one("#track-popularity", Input).value = str(track.popularity)
+        self.query_one("#track-explicit", Input).value = "true" if track.explicit else "false"
+        self.query_one("#track-danceability", Input).value = str(track.features.danceability or "")
+        self.query_one("#track-energy", Input).value = str(track.features.energy or "")
+        self.query_one("#track-valence", Input).value = str(track.features.valence or "")
+        self.query_one("#track-acousticness", Input).value = str(track.features.acousticness or "")
+        self.query_one("#track-speechiness", Input).value = str(track.features.speechiness or "")
+        self.query_one("#track-instrumentalness", Input).value = str(track.features.instrumentalness or "")
+        self.query_one("#track-liveness", Input).value = str(track.features.liveness or "")
+        self.query_one("#track-tempo", Input).value = str(track.features.tempo or "")
+        self.query_one("#track-loudness", Input).value = str(track.features.loudness or "")
+
+    def _clear_track_form(self) -> None:
+        for selector in (
+            "#track-id",
+            "#track-name",
+            "#track-spotify-id",
+            "#track-album-id",
+            "#track-duration",
+            "#track-popularity",
+            "#track-explicit",
+            "#track-artist-ids",
+            "#track-genre-ids",
+            "#track-danceability",
+            "#track-energy",
+            "#track-valence",
+            "#track-acousticness",
+            "#track-speechiness",
+            "#track-instrumentalness",
+            "#track-liveness",
+            "#track-tempo",
+            "#track-loudness",
+            "#track-key",
+            "#track-mode",
+            "#track-time-signature",
+        ):
+            self.query_one(selector, Input).value = ""
 
     def watch_active_view(self, view_id: str) -> None:
         # Textual automatically calls watch_<reactive_name> when that reactive
@@ -693,11 +916,12 @@ class SpotifyExplorerApp(App[None]):
         if not response:
             return
         self.user_id = int(response["user_id"])
-        self.username = username
-        self.is_admin = bool(response.get("is_admin"))
+        profile = self._safe("Profile", lambda: data.get_profile(self.user_id), None)
+        self.username = str(profile.get("UserName", username)) if profile else username
+        self.is_admin = bool(profile.get("IsAdmin") if profile else response.get("is_admin"))
         self._refresh_account()
         self._refresh_playlists()
-        self.notify(f"Logged in as {username}", title="Account")
+        self.notify(f"Logged in as {self.username}", title="Account")
 
     @on(Button.Pressed, "#register")
     def on_register(self) -> None:
@@ -739,6 +963,23 @@ class SpotifyExplorerApp(App[None]):
         response = self._safe("Clear history", lambda: data.clear_recommendation_history(self.user_id), None)
         if response:
             self.query_one("#recommendation-status", Static).update(response.get("message", "History cleared."))
+            self._refresh_account()
+
+    @on(Button.Pressed, "#clear-all-history")
+    def on_clear_all_history(self) -> None:
+        # This calls the admin-only backend endpoint. The backend still enforces
+        # admin access, but checking here gives a clearer TUI message.
+        if self.user_id is None:
+            self.query_one("#recommendation-status", Static).update("Log in before clearing all history.")
+            return
+        if not self.is_admin:
+            self.query_one("#recommendation-status", Static).update("Only admins can clear all history.")
+            return
+        response = self._safe("Clear all history", lambda: data.clear_all_recommendation_history(self.user_id), None)
+        if response:
+            self.query_one("#recommendation-status", Static).update(
+                f"{response.get('message', 'All history cleared.')} Deleted: {response.get('deleted_count', 0)}"
+            )
             self._refresh_account()
 
     @on(Button.Pressed, "#run-mood")
@@ -786,6 +1027,27 @@ class SpotifyExplorerApp(App[None]):
         # Manual refresh is useful after creating/generating/deleting playlists
         # or if another client has changed the same user's data.
         self._refresh_playlists()
+
+    @on(Button.Pressed, "#update-playlist")
+    def on_update_playlist(self) -> None:
+        # This covers PUT /playlists/<id>. It updates the selected playlist
+        # using the name and mood controls at the top of the playlist screen.
+        if self.user_id is None or self.selected_playlist_id is None:
+            self.query_one("#playlist-status", Static).update("Select a playlist before updating it.")
+            return
+        name = self.query_one("#playlist-name", Input).value.strip()
+        if not name:
+            self.query_one("#playlist-status", Static).update("Playlist name is required.")
+            return
+        mood_id = int(self.query_one("#playlist-mood", Select).value or 0) or None
+        response = self._safe(
+            "Update playlist",
+            lambda: data.update_playlist(self.selected_playlist_id, self.user_id, name, mood_id),
+            None,
+        )
+        if response:
+            self.query_one("#playlist-status", Static).update(response.get("message", "Playlist updated."))
+            self._refresh_playlists()
 
     @on(Button.Pressed, "#add-selected-track")
     def on_add_selected_track(self) -> None:
@@ -846,6 +1108,104 @@ class SpotifyExplorerApp(App[None]):
         # Refresh artists/albums/genres using the current catalog search box.
         self._refresh_catalog()
 
+    @on(Button.Pressed, "#create-artist")
+    def on_create_artist(self) -> None:
+        name = self.query_one("#artist-name", Input).value.strip()
+        if not name:
+            self.query_one("#management-status", Static).update("Artist name is required.")
+            return
+        response = self._safe("Create artist", lambda: data.create_artist(name), None)
+        if response:
+            self.query_one("#artist-id", Input).value = str(response.get("ArtistID", ""))
+            self.query_one("#management-status", Static).update(response.get("message", "Artist created."))
+            self._refresh_catalog()
+
+    @on(Button.Pressed, "#update-artist")
+    def on_update_artist(self) -> None:
+        artist_id = self._optional_int_input("#artist-id")
+        name = self.query_one("#artist-name", Input).value.strip()
+        if artist_id is None or not name:
+            self.query_one("#management-status", Static).update("Artist ID and name are required.")
+            return
+        response = self._safe("Update artist", lambda: data.update_artist(artist_id, name), None)
+        if response:
+            self.query_one("#management-status", Static).update(response.get("message", "Artist updated."))
+            self._refresh_catalog()
+
+    @on(Button.Pressed, "#delete-artist")
+    def on_delete_artist(self) -> None:
+        self._delete_artist(force=False)
+
+    @on(Button.Pressed, "#force-delete-artist")
+    def on_force_delete_artist(self) -> None:
+        self._delete_artist(force=True)
+
+    @on(Button.Pressed, "#load-selected-track-form")
+    def on_load_selected_track_form(self) -> None:
+        # This button is a bridge from the browsing side of the app into the
+        # track CRUD form. It also explicitly exercises GET /tracks/<id>.
+        if self.selected_track_id is None:
+            self.query_one("#management-status", Static).update("Select a track first.")
+            return
+        track = self._safe("Load track", lambda: data.get_track(int(self.selected_track_id)), None)
+        if track:
+            self.track_cache[track.track_id] = track
+            self._fill_track_form(track)
+            self.query_one("#management-status", Static).update(f"Loaded TrackID {track.track_id}.")
+
+    @on(Button.Pressed, "#create-track")
+    def on_create_track(self) -> None:
+        payload = self._track_form_payload(require_create_fields=True)
+        if payload is None:
+            return
+        response = self._safe("Create track", lambda: data.create_track(payload), None)
+        if response and response.get("track"):
+            track = data.track_from_row(response["track"])
+            self.track_cache[track.track_id] = track
+            self.selected_track_id = track.track_id
+            self._fill_track_form(track)
+            self.query_one("#management-status", Static).update(response.get("message", "Track created."))
+            self._refresh_search_table()
+            self._refresh_catalog()
+
+    @on(Button.Pressed, "#update-track")
+    def on_update_track(self) -> None:
+        track_id = self._optional_int_input("#track-id")
+        if track_id is None:
+            self.query_one("#management-status", Static).update("Track ID is required.")
+            return
+        payload = self._track_form_payload(require_create_fields=False)
+        if payload is None:
+            return
+        if not payload:
+            self.query_one("#management-status", Static).update("Enter at least one track field to update.")
+            return
+        response = self._safe("Update track", lambda: data.update_track(track_id, payload), None)
+        if response and response.get("track"):
+            track = data.track_from_row(response["track"])
+            self.track_cache[track.track_id] = track
+            self.selected_track_id = track.track_id
+            self._fill_track_form(track)
+            self.query_one("#management-status", Static).update(response.get("message", "Track updated."))
+            self._refresh_search_table()
+            self._refresh_catalog()
+
+    @on(Button.Pressed, "#delete-track")
+    def on_delete_track(self) -> None:
+        track_id = self._optional_int_input("#track-id")
+        if track_id is None:
+            self.query_one("#management-status", Static).update("Track ID is required.")
+            return
+        response = self._safe("Delete track", lambda: data.delete_track(track_id), None)
+        if response:
+            self.track_cache.pop(track_id, None)
+            if self.selected_track_id == track_id:
+                self.selected_track_id = None
+            self.query_one("#management-status", Static).update(response.get("message", "Track deleted."))
+            self._clear_track_form()
+            self._refresh_search_table()
+            self._refresh_catalog()
+
     @on(Select.Changed, "#seed-track")
     def on_seed_changed(self, event: Select.Changed) -> None:
         # Keep the app-wide selected track synchronized with the recommendation
@@ -856,7 +1216,7 @@ class SpotifyExplorerApp(App[None]):
     @on(Select.Changed, "#mood-select")
     def on_mood_changed(self) -> None:
         # Changing the mood dropdown updates the range explanation immediately.
-        # actual track search still waits for the Search button.
+        # Actual track search still waits for the Search button.
         self._refresh_mood_profile_copy()
 
     @on(DataTable.RowSelected)
@@ -991,6 +1351,10 @@ class SpotifyExplorerApp(App[None]):
         # not ask the backend for tracks.
         mood_id = int(self.query_one("#mood-select", Select).value or 0)
         profile = self._mood_by_id(mood_id)
+        if mood_id:
+            profile = self._safe("Mood profile", lambda: data.get_mood_profile(mood_id), profile)
+            if profile:
+                self._replace_mood_profile(profile)
         self.query_one("#mood-profile", Static).update(self._mood_copy(profile, None))
 
     def _refresh_mood(self) -> None:
@@ -1129,15 +1493,18 @@ class SpotifyExplorerApp(App[None]):
         genres = self._safe("Genres", data.list_genres, [])
 
         artists_table = self._table("#artists-table")
+        artist_admin_table = self._table("#artist-admin-table")
         artists_table.clear()
+        artist_admin_table.clear()
         for artist in artists:
             artist_id = int(artist.get("ArtistID", 0))
-            artists_table.add_row(
+            artist_row = (
                 str(artist_id),
                 str(artist.get("ArtistName", "")),
                 str(artist.get("TrackCount", "")),
-                key=self._make_row_key("artist", artist_id),
             )
+            artists_table.add_row(*artist_row, key=self._make_row_key("artist", artist_id))
+            artist_admin_table.add_row(*artist_row, key=self._make_row_key("artist", artist_id))
 
         albums_table = self._table("#albums-table")
         albums_table.clear()
@@ -1168,14 +1535,31 @@ class SpotifyExplorerApp(App[None]):
         tracks = []
         if artist:
             artist_name = str(artist.get("ArtistName") or "")
+            self._set_input_if_exists("#artist-id", str(artist_id))
+            self._set_input_if_exists("#artist-name", artist_name)
+            self.query_one("#catalog-detail", Static).update(
+                f"[b #1ed760]{artist_name}[/]\n"
+                f"ArtistID: {artist_id}\n"
+                f"Tracks: {artist.get('TrackCount', 0)}"
+            )
             for row in artist.get("tracks", []):
                 row.setdefault("Artists", [artist_name])
                 tracks.append(data.track_from_row(row))
         self._fill_catalog_tracks(tracks)
 
     def _load_album_tracks(self, album_id: int) -> None:
-        # Album tracks already have the fuller joined shape, so they can be
-        # mapped directly.
+        # This uses both album endpoints: one for album summary metadata and
+        # one for the track list.
+        album = self._safe("Album detail", lambda: data.get_album(album_id), None)
+        if album:
+            avg = album.get("AvgPopularity")
+            avg_text = f"{float(avg):.1f}" if avg is not None else "-"
+            self.query_one("#catalog-detail", Static).update(
+                f"[b #1ed760]{album.get('AlbumName', '')}[/]\n"
+                f"AlbumID: {album_id}\n"
+                f"Tracks: {album.get('TrackCount', 0)}\n"
+                f"Avg popularity: {avg_text}"
+            )
         tracks = self._safe("Album tracks", lambda: data.get_album_tracks(album_id), [])
         self._fill_catalog_tracks(tracks)
 
@@ -1187,6 +1571,8 @@ class SpotifyExplorerApp(App[None]):
             if int(genre.get("GenreID", 0)) == genre_id:
                 genre_name = str(genre.get("GenreName") or "")
                 break
+        if genre_name:
+            self.query_one("#catalog-detail", Static).update(f"[b #1ed760]{genre_name}[/]\nGenreID: {genre_id}")
         tracks = self._safe("Genre tracks", lambda: data.get_genre_tracks(genre_id), [])
         if genre_name:
             tracks = [
