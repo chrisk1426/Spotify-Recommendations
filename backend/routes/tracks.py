@@ -20,6 +20,16 @@ def parse_limit(raw):
     return limit
 
 
+def listify(row):
+    """Turn the comma-joined Artists/Genres columns into JSON arrays."""
+    if row is None:
+        return row
+    for field in ('Artists', 'Genres'):
+        if field in row:
+            row[field] = row[field].split(', ') if row[field] else []
+    return row
+
+
 def get_track_by_id(track_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -80,7 +90,7 @@ def get_track_by_id(track_id):
                 af.TimeSignature
         """, (track_id,))
 
-        return cursor.fetchone()
+        return listify(cursor.fetchone())
 
     finally:
         cursor.close()
@@ -196,7 +206,7 @@ def get_tracks():
                 LIMIT %s
             """, (limit,))
 
-        tracks = cursor.fetchall()
+        tracks = [listify(t) for t in cursor.fetchall()]
         return jsonify(tracks), 200
 
     finally:
