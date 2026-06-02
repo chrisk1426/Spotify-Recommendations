@@ -3,8 +3,10 @@ Python file for playlist endpoints.
 """
 from flask import Blueprint, request, jsonify
 from db import get_connection
+from utils import check_playlist_owner
 
 playlists_bp = Blueprint('playlists', __name__)
+
 
 @playlists_bp.route('/user/<int:user_id>', methods=['GET'])
 def get_user_playlists(user_id):
@@ -12,8 +14,7 @@ def get_user_playlists(user_id):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM Playlists WHERE UserID = %s", (user_id,))
-        playlists = cursor.fetchall()
-        return jsonify(playlists), 200
+        return jsonify(cursor.fetchall()), 200
     finally:
         cursor.close()
         conn.close()
@@ -30,8 +31,7 @@ def get_playlist_tracks(playlist_id):
             JOIN Tracks t ON t.TrackID = pt.TrackID
             WHERE pt.PlaylistID = %s
         """, (playlist_id,))
-        tracks = cursor.fetchall()
-        return jsonify(tracks), 200
+        return jsonify(cursor.fetchall()), 200
     finally:
         cursor.close()
         conn.close()
@@ -44,6 +44,9 @@ def create_playlist():
     name = data.get('name')
     mood_profile_id = data.get('mood_profile_id')
     track_ids = data.get('track_ids', [])
+
+    if not user_id or not name:
+        return jsonify({'error': 'user_id and name are required'}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -76,15 +79,28 @@ def create_playlist():
 def add_track(playlist_id):
     data = request.get_json()
     track_id = data.get('track_id')
+    user_id = data.get('user_id')
+
+    if not user_id:
+        return jsonify({'error': 'user_id is required'}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        owned = check_playlist_owner(cursor, playlist_id, user_id)
+        if owned is None:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if not owned:
+            return jsonify({'error': 'You do not own this playlist'}), 403
+
         conn.start_transaction()
         cursor.execute("""
             INSERT IGNORE INTO PlaylistTracks (PlaylistID, TrackID) VALUES (%s, %s)
         """, (playlist_id, track_id))
-        cursor.execute("UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s", (playlist_id,))
+        cursor.execute(
+            "UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s",
+            (playlist_id,)
+        )
         conn.commit()
         return jsonify({'message': 'Track added'}), 200
     except Exception as e:
@@ -97,14 +113,27 @@ def add_track(playlist_id):
 
 @playlists_bp.route('/<int:playlist_id>/tracks/<int:track_id>', methods=['DELETE'])
 def remove_track(playlist_id, track_id):
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'user_id query parameter is required'}), 400
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        owned = check_playlist_owner(cursor, playlist_id, user_id)
+        if owned is None:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if not owned:
+            return jsonify({'error': 'You do not own this playlist'}), 403
+
         conn.start_transaction()
         cursor.execute("""
             DELETE FROM PlaylistTracks WHERE PlaylistID = %s AND TrackID = %s
         """, (playlist_id, track_id))
-        cursor.execute("UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s", (playlist_id,))
+        cursor.execute(
+            "UPDATE Playlists SET UpdatedAt = NOW() WHERE PlaylistID = %s",
+            (playlist_id,)
+        )
         conn.commit()
         return jsonify({'message': 'Track removed'}), 200
     except Exception as e:
@@ -117,9 +146,19 @@ def remove_track(playlist_id, track_id):
 
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
 def delete_playlist(playlist_id):
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'user_id query parameter is required'}), 400
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        owned = check_playlist_owner(cursor, playlist_id, user_id)
+        if owned is None:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if not owned:
+            return jsonify({'error': 'You do not own this playlist'}), 403
+
         conn.start_transaction()
         cursor.execute("DELETE FROM PlaylistTracks WHERE PlaylistID = %s", (playlist_id,))
         cursor.execute("DELETE FROM Playlists WHERE PlaylistID = %s", (playlist_id,))
@@ -136,12 +175,23 @@ def delete_playlist(playlist_id):
 @playlists_bp.route('/<int:playlist_id>', methods=['PUT'])
 def update_playlist(playlist_id):
     data = request.get_json()
+    user_id = data.get('user_id')
     name = data.get('name')
     mood_profile_id = data.get('mood_profile_id')
+
+    if not user_id:
+        return jsonify({'error': 'user_id is required'}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        owned = check_playlist_owner(cursor, playlist_id, user_id)
+        if owned is None:
+            return jsonify({'error': 'Playlist not found'}), 404
+        if not owned:
+            return jsonify({'error': 'You do not own this playlist'}), 403
+
+        conn.start_transaction()
         cursor.execute("""
             UPDATE Playlists SET PlaylistName = %s, MoodProfileID = %s, UpdatedAt = NOW()
             WHERE PlaylistID = %s
@@ -155,6 +205,7 @@ def update_playlist(playlist_id):
         cursor.close()
         conn.close()
 
+
 @playlists_bp.route('/generate', methods=['POST'])
 def generate_playlist():
     data = request.get_json()
@@ -163,10 +214,16 @@ def generate_playlist():
     name = data.get('name')
     limit = data.get('limit', 20)
 
+    if not user_id or not name:
+        return jsonify({'error': 'user_id and name are required'}), 400
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM MoodProfiles WHERE MoodProfileID = %s", (mood_profile_id,))
+        cursor.execute(
+            "SELECT * FROM MoodProfiles WHERE MoodProfileID = %s",
+            (mood_profile_id,)
+        )
         mood = cursor.fetchone()
         if not mood:
             return jsonify({'error': 'Mood profile not found'}), 404
@@ -177,23 +234,25 @@ def generate_playlist():
             JOIN AudioFeatures af ON af.TrackID = t.TrackID
             WHERE
                 af.Danceability BETWEEN %s AND %s AND
-                af.Energy BETWEEN %s AND %s AND
-                af.Loudness BETWEEN %s AND %s AND
-                af.Valence BETWEEN %s AND %s AND
-                af.Tempo BETWEEN %s AND %s
+                af.Energy       BETWEEN %s AND %s AND
+                af.Loudness     BETWEEN %s AND %s AND
+                af.Valence      BETWEEN %s AND %s AND
+                af.Tempo        BETWEEN %s AND %s
             ORDER BY t.Popularity DESC
             LIMIT %s
         """, (
             mood['MinDanceability'], mood['MaxDanceability'],
-            mood['MinEnergy'], mood['MaxEnergy'],
-            mood['MinLoudness'], mood['MaxLoudness'],
-            mood['MinValence'], mood['MaxValence'],
-            mood['MinTempo'], mood['MaxTempo'],
+            mood['MinEnergy'],       mood['MaxEnergy'],
+            mood['MinLoudness'],     mood['MaxLoudness'],
+            mood['MinValence'],      mood['MaxValence'],
+            mood['MinTempo'],        mood['MaxTempo'],
             limit
         ))
         tracks = cursor.fetchall()
         if not tracks:
             return jsonify({'error': 'No tracks found for this mood profile'}), 404
+
+        conn.start_transaction()
 
         cursor.execute("""
             INSERT INTO Playlists (PlaylistName, UserID, MoodProfileID, CreatedAt, UpdatedAt)
@@ -208,7 +267,11 @@ def generate_playlist():
             """, (playlist_id, track['TrackID']))
 
         conn.commit()
-        return jsonify({'message': 'Playlist generated', 'playlist_id': playlist_id, 'track_count': len(tracks)}), 201
+        return jsonify({
+            'message': 'Playlist generated',
+            'playlist_id': playlist_id,
+            'track_count': len(tracks)
+        }), 201
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 400
