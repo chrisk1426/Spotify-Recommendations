@@ -26,12 +26,50 @@ def get_playlist_tracks(playlist_id):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.TrackID, t.TrackName, t.Duration, t.Popularity
+            SELECT
+                t.TrackID,
+                t.SpotifyTrackID,
+                t.TrackName,
+                t.Duration,
+                t.Popularity,
+                t.IsExplicit,
+                t.AlbumID,
+                al.AlbumName,
+                af.Danceability,
+                af.Energy,
+                af.`Key`             AS SpotifyKey,
+                af.Loudness,
+                af.`Mode`            AS SpotifyMode,
+                af.Speechiness,
+                af.Acousticness,
+                af.Instrumentalness,
+                af.Liveness,
+                af.Valence,
+                af.Tempo,
+                af.TimeSignature,
+                GROUP_CONCAT(DISTINCT ar.ArtistName ORDER BY ar.ArtistName SEPARATOR ', ') AS Artists,
+                GROUP_CONCAT(DISTINCT g.GenreName   ORDER BY g.GenreName   SEPARATOR ', ') AS Genres
             FROM PlaylistTracks pt
-            JOIN Tracks t ON t.TrackID = pt.TrackID
+            JOIN Tracks t              ON  t.TrackID  = pt.TrackID
+            LEFT JOIN Albums al        ON al.AlbumID  = t.AlbumID
+            LEFT JOIN AudioFeatures af ON af.TrackID  = t.TrackID
+            LEFT JOIN TrackArtists  ta ON ta.TrackID  = t.TrackID
+            LEFT JOIN Artists       ar ON ar.ArtistID = ta.ArtistID
+            LEFT JOIN TrackGenres   tg ON tg.TrackID  = t.TrackID
+            LEFT JOIN Genres         g ON  g.GenreID  = tg.GenreID
             WHERE pt.PlaylistID = %s
+            GROUP BY
+                t.TrackID, t.SpotifyTrackID, t.TrackName, t.Duration,
+                t.Popularity, t.IsExplicit, t.AlbumID, al.AlbumName,
+                af.Danceability, af.Energy, af.`Key`, af.Loudness, af.`Mode`,
+                af.Speechiness, af.Acousticness, af.Instrumentalness,
+                af.Liveness, af.Valence, af.Tempo, af.TimeSignature
         """, (playlist_id,))
-        return jsonify(cursor.fetchall()), 200
+        tracks = cursor.fetchall()
+        for row in tracks:
+            for field in ('Artists', 'Genres'):
+                row[field] = row[field].split(', ') if row.get(field) else []
+        return jsonify(tracks), 200
     finally:
         cursor.close()
         conn.close()

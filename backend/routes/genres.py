@@ -26,15 +26,51 @@ def get_tracks_by_genre(genre_id):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.TrackID, t.TrackName, t.Duration, t.Popularity
+            SELECT
+                t.TrackID,
+                t.SpotifyTrackID,
+                t.TrackName,
+                t.Duration,
+                t.Popularity,
+                t.IsExplicit,
+                t.AlbumID,
+                al.AlbumName,
+                af.Danceability,
+                af.Energy,
+                af.`Key`             AS SpotifyKey,
+                af.Loudness,
+                af.`Mode`            AS SpotifyMode,
+                af.Speechiness,
+                af.Acousticness,
+                af.Instrumentalness,
+                af.Liveness,
+                af.Valence,
+                af.Tempo,
+                af.TimeSignature,
+                GROUP_CONCAT(DISTINCT ar.ArtistName ORDER BY ar.ArtistName SEPARATOR ', ') AS Artists,
+                GROUP_CONCAT(DISTINCT g.GenreName   ORDER BY g.GenreName   SEPARATOR ', ') AS Genres
             FROM Tracks t
-            JOIN TrackGenres tg ON tg.TrackID = t.TrackID
-            WHERE tg.GenreID = %s
+            LEFT JOIN Albums al        ON al.AlbumID  = t.AlbumID
+            LEFT JOIN AudioFeatures af ON af.TrackID  = t.TrackID
+            LEFT JOIN TrackArtists  ta ON ta.TrackID  = t.TrackID
+            LEFT JOIN Artists       ar ON ar.ArtistID = ta.ArtistID
+            LEFT JOIN TrackGenres   tg ON tg.TrackID  = t.TrackID
+            LEFT JOIN Genres         g ON  g.GenreID  = tg.GenreID
+            WHERE t.TrackID IN (SELECT TrackID FROM TrackGenres WHERE GenreID = %s)
+            GROUP BY
+                t.TrackID, t.SpotifyTrackID, t.TrackName, t.Duration,
+                t.Popularity, t.IsExplicit, t.AlbumID, al.AlbumName,
+                af.Danceability, af.Energy, af.`Key`, af.Loudness, af.`Mode`,
+                af.Speechiness, af.Acousticness, af.Instrumentalness,
+                af.Liveness, af.Valence, af.Tempo, af.TimeSignature
             ORDER BY t.Popularity DESC
         """, (genre_id,))
         tracks = cursor.fetchall()
         if not tracks:
             return jsonify({'error': 'No tracks found for this genre'}), 404
+        for row in tracks:
+            for field in ('Artists', 'Genres'):
+                row[field] = row[field].split(', ') if row.get(field) else []
         return jsonify(tracks), 200
     finally:
         cursor.close()
