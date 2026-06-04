@@ -1,5 +1,5 @@
 """
-Python file for user login and authentication endpoints.
+Python file that contains API endpoints for user authentication.
 """
 from flask import Blueprint, request, jsonify
 from db import get_connection
@@ -9,6 +9,9 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
+    """
+    Endpoint to create/register a new user.
+    """
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -34,6 +37,9 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    """
+    Endpoint to login as a user. Note that we hash passwords for security.
+    """
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -55,6 +61,9 @@ def login():
 
 @auth_bp.route('/profile/<int:user_id>', methods=['GET'])
 def get_profile(user_id):
+    """
+    Endpoint to get user/account information.
+    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:

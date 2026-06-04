@@ -1,5 +1,5 @@
 """
-Python file containing endpoint for genres.
+Python file containing API endpoints for genre table.
 """
 from flask import Blueprint, request, jsonify
 from db import get_connection
@@ -9,6 +9,9 @@ genres_bp = Blueprint('genres', __name__)
 
 @genres_bp.route('/', methods=['GET'])
 def get_all_genres():
+    """
+    Endpoint to retrieve all music genres available.
+    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -22,6 +25,9 @@ def get_all_genres():
 
 @genres_bp.route('/<int:genre_id>/tracks', methods=['GET'])
 def get_tracks_by_genre(genre_id):
+    """
+    Endpoint to retrieve tracks by genre.
+    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
