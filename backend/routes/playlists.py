@@ -1,5 +1,5 @@
 """
-Python file for playlist endpoints.
+Python file that contains API endpoints for playlist functionality.
 """
 from flask import Blueprint, request, jsonify
 from db import get_connection
@@ -10,6 +10,9 @@ playlists_bp = Blueprint('playlists', __name__)
 
 @playlists_bp.route('/user/<int:user_id>', methods=['GET'])
 def get_user_playlists(user_id):
+    """
+    Endpoint to retreive all playlists created by a user.
+    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -22,6 +25,9 @@ def get_user_playlists(user_id):
 
 @playlists_bp.route('/<int:playlist_id>/tracks', methods=['GET'])
 def get_playlist_tracks(playlist_id):
+    """
+    End point to get all tracks in a specific playlist.
+    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -77,6 +83,9 @@ def get_playlist_tracks(playlist_id):
 
 @playlists_bp.route('/', methods=['POST'])
 def create_playlist():
+    """
+    Endpoint to create a new playlist. Playlists are initially empty.
+    """
     data = request.get_json()
     user_id = data.get('user_id')
     name = data.get('name')
@@ -118,6 +127,9 @@ def create_playlist():
 
 @playlists_bp.route('/<int:playlist_id>/tracks', methods=['POST'])
 def add_track(playlist_id):
+    """
+    Endpoint to add a track to a playlist.
+    """
     data = request.get_json()
     track_id = data.get('track_id')
     user_id = data.get('user_id')
@@ -160,6 +172,9 @@ def add_track(playlist_id):
 
 @playlists_bp.route('/<int:playlist_id>/tracks/<int:track_id>', methods=['DELETE'])
 def remove_track(playlist_id, track_id):
+    """
+    Endpoint to remove a track from a playlist.
+    """
     user_id = request.args.get('user_id', type=int)
 
     if not user_id:
@@ -200,6 +215,9 @@ def remove_track(playlist_id, track_id):
 
 @playlists_bp.route('/<int:playlist_id>', methods=['DELETE'])
 def delete_playlist(playlist_id):
+    """
+    Endpoint to remove a playlist. Note that this also removes all relations between tracks and this playlist.
+    """
     user_id = request.args.get('user_id', type=int)
 
     if not user_id:
@@ -238,6 +256,9 @@ def delete_playlist(playlist_id):
 
 @playlists_bp.route('/<int:playlist_id>', methods=['PUT'])
 def update_playlist(playlist_id):
+    """
+    Endpoint to update playlist information.
+    """
     data = request.get_json()
     user_id = data.get('user_id')
     name = data.get('name')
@@ -279,6 +300,10 @@ def update_playlist(playlist_id):
 
 @playlists_bp.route('/generate', methods=['POST'])
 def generate_playlist():
+    """
+    Endpoint to generate a random playlist based off a mood profile. We generate the number of songs the 
+    user specified and all songs fit the mood profile.
+    """
     data = request.get_json()
 
     user_id = data.get('user_id')
