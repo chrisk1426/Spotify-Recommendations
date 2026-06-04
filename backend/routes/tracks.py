@@ -1,15 +1,18 @@
+# Routes/Endpoints/CRUD Operations for the Tracks resource
 from flask import Blueprint, request, jsonify
 from db import get_connection
 
 tracks_bp = Blueprint('tracks', __name__)
 
 
+# Converts truth to a boolean 
 def bool_to_int(value):
     if value in [True, 1, '1', 'true', 'True', 'yes', 'Yes']:
         return 1
     return 0
 
 
+# Validate the limit query parameter 
 def parse_limit(raw):
     try:
         limit = int(raw)
@@ -19,9 +22,8 @@ def parse_limit(raw):
         return None
     return limit
 
-
+# Turn the comma-joined Artists/Genres columns into JSON arrays.
 def listify(row):
-    """Turn the comma-joined Artists/Genres columns into JSON arrays."""
     if row is None:
         return row
     for field in ('Artists', 'Genres'):
@@ -30,13 +32,17 @@ def listify(row):
     return row
 
 
+# Load a single track with all its details
+# artist/genre names rolled up into comma-joined strings 
+# Helper function reused by GET/POST/PUT 
 def get_track_by_id(track_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # select track info 
         cursor.execute("""
-            SELECT 
+            SELECT
                 t.TrackID,
                 t.SpotifyTrackID,
                 t.TrackName,
@@ -97,6 +103,7 @@ def get_track_by_id(track_id):
         conn.close()
 
 
+# list tracks
 @tracks_bp.route('/', methods=['GET'])
 def get_tracks():
     search = request.args.get('q', '')
@@ -110,8 +117,10 @@ def get_tracks():
 
     try:
         if search:
+            # Match on track, album, artist, or genre name. The subquery, in the where clause, finds
+            # the matching track IDs first.
             cursor.execute("""
-                SELECT 
+                SELECT
                     t.TrackID,
                     t.SpotifyTrackID,
                     t.TrackName,
@@ -168,8 +177,9 @@ def get_tracks():
                 limit
             ))
         else:
+            # No search term: just return the most popular tracks.
             cursor.execute("""
-                SELECT 
+                SELECT
                     t.TrackID,
                     t.SpotifyTrackID,
                     t.TrackName,
@@ -214,6 +224,7 @@ def get_tracks():
         conn.close()
 
 
+# full details for one track, or 404 if it doesn't exist.
 @tracks_bp.route('/<int:track_id>', methods=['GET'])
 def get_track(track_id):
     track = get_track_by_id(track_id)
@@ -224,6 +235,7 @@ def get_track(track_id):
     return jsonify(track), 200
 
 
+# create a track plus its audio features and artist/genre links.
 @tracks_bp.route('/', methods=['POST'])
 def create_track():
     data = request.get_json()
@@ -249,6 +261,7 @@ def create_track():
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # Insert the core track row first so we get its new ID for the linked rows.
         cursor.execute("""
             INSERT INTO Tracks
                 (SpotifyTrackID, TrackName, Duration, Popularity, IsExplicit, AlbumID)
@@ -263,8 +276,9 @@ def create_track():
             album_id
         ))
 
-        track_id = cursor.lastrowid
+        track_id = cursor.lastrowid  # ID MySQL assigned to the new track
 
+        # One AudioFeatures row per track 
         cursor.execute("""
             INSERT INTO AudioFeatures
                 (TrackID, Danceability, Energy, `Key`, Loudness, `Mode`, Speechiness,
@@ -287,6 +301,7 @@ def create_track():
             audio.get('time_signature')
         ))
 
+        # Link the track to its artists and genres 
         for artist_id in artist_ids:
             cursor.execute("""
                 INSERT INTO TrackArtists (TrackID, ArtistID)
@@ -299,7 +314,7 @@ def create_track():
                 VALUES (%s, %s)
             """, (track_id, genre_id))
 
-        conn.commit()
+        conn.commit()  # all inserts succeeded
 
         new_track = get_track_by_id(track_id)
 
@@ -309,7 +324,7 @@ def create_track():
         }), 201
 
     except Exception as e:
-        conn.rollback()
+        conn.rollback()  # undo every insert if any step failed
         return jsonify({'error': str(e)}), 400
 
     finally:
@@ -317,6 +332,7 @@ def create_track():
         conn.close()
 
 
+# partial update; only the fields present in the body change.
 @tracks_bp.route('/<int:track_id>', methods=['PUT'])
 def update_track(track_id):
     data = request.get_json()
@@ -333,6 +349,7 @@ def update_track(track_id):
         if not cursor.fetchone():
             return jsonify({'error': 'Track not found'}), 404
 
+        # Build the SET clause from whichever fields were sent.
         track_updates = []
         track_values = []
 
@@ -369,12 +386,14 @@ def update_track(track_id):
                 WHERE TrackID = %s
             """, tuple(track_values))
 
+        # Same pattern for the linked AudioFeatures row.
         if 'audio_features' in data:
             audio = data.get('audio_features', {})
 
             audio_updates = []
             audio_values = []
 
+            # Map incoming JSON keys to their actual DB column names.
             audio_fields = {
                 'danceability': 'Danceability',
                 'energy': 'Energy',
@@ -404,6 +423,7 @@ def update_track(track_id):
                     WHERE TrackID = %s
                 """, tuple(audio_values))
 
+        # For the link tables we replace the whole set
         if 'artist_ids' in data:
             cursor.execute(
                 "DELETE FROM TrackArtists WHERE TrackID = %s",
@@ -446,6 +466,7 @@ def update_track(track_id):
         conn.close()
 
 
+# remove a track and everything that references it.
 @tracks_bp.route('/<int:track_id>', methods=['DELETE'])
 def delete_track(track_id):
     conn = get_connection()
@@ -460,6 +481,8 @@ def delete_track(track_id):
         if not cursor.fetchone():
             return jsonify({'error': 'Track not found'}), 404
 
+        # Delete child/reference rows first so foreign keys don't block the
+        # final delete of the track itself.
         cursor.execute(
             "DELETE FROM RecommendationHistory WHERE TrackID = %s",
             (track_id,)
@@ -485,6 +508,7 @@ def delete_track(track_id):
             (track_id,)
         )
 
+        # Now safe to delete the track row itself.
         cursor.execute(
             "DELETE FROM Tracks WHERE TrackID = %s",
             (track_id,)

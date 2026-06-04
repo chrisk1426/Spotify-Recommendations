@@ -1,9 +1,11 @@
+# Routes/Endpoint/CRUD Operations for the Artists resource
 from flask import Blueprint, request, jsonify
 from db import get_connection
 
 artists_bp = Blueprint('artists', __name__)
 
 
+# Validate the limit query 
 def parse_limit(raw):
     try:
         limit = int(raw)
@@ -14,6 +16,7 @@ def parse_limit(raw):
     return limit
 
 
+# list artists with a track count
 @artists_bp.route('/', methods=['GET'])
 def get_artists():
     search = request.args.get('q', '')
@@ -26,9 +29,10 @@ def get_artists():
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # gives each artist their number of tracks 
         if search:
             cursor.execute("""
-                SELECT 
+                SELECT
                     a.ArtistID,
                     a.ArtistName,
                     COUNT(ta.TrackID) AS TrackCount
@@ -60,14 +64,16 @@ def get_artists():
         conn.close()
 
 
+# the artist plus the full list of their tracks.
 @artists_bp.route('/<int:artist_id>', methods=['GET'])
 def get_artist(artist_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # the artist summary: name + track count
         cursor.execute("""
-            SELECT 
+            SELECT
                 a.ArtistID,
                 a.ArtistName,
                 COUNT(ta.TrackID) AS TrackCount
@@ -82,6 +88,8 @@ def get_artist(artist_id):
         if not artist:
             return jsonify({'error': 'Artist not found'}), 404
 
+        # every track by this artist, with details and the
+        # artist/genre names 
         cursor.execute("""
             SELECT
                 t.TrackID,
@@ -123,11 +131,12 @@ def get_artist(artist_id):
             ORDER BY t.Popularity DESC
         """, (artist_id,))
 
+        # Split the comma-joined Artists and Genres strings back into JSON arrays.
         tracks = cursor.fetchall()
         for row in tracks:
             for field in ('Artists', 'Genres'):
                 row[field] = row[field].split(', ') if row.get(field) else []
-        artist['tracks'] = tracks
+        artist['tracks'] = tracks  # attach the track list to the artist object
 
         return jsonify(artist), 200
 
@@ -136,6 +145,7 @@ def get_artist(artist_id):
         conn.close()
 
 
+# create a new artist from an artist_name
 @artists_bp.route('/', methods=['POST'])
 def create_artist():
     data = request.get_json()
@@ -171,6 +181,7 @@ def create_artist():
         conn.close()
 
 
+# rename an existing artist.
 @artists_bp.route('/<int:artist_id>', methods=['PUT'])
 def update_artist(artist_id):
     data = request.get_json()
@@ -213,6 +224,7 @@ def update_artist(artist_id):
         conn.close()
 
 
+# delete an artist; refuses if still linked to tracks
 @artists_bp.route('/<int:artist_id>', methods=['DELETE'])
 def delete_artist(artist_id):
     force = request.args.get('force', 'false').lower() == 'true'
@@ -221,6 +233,7 @@ def delete_artist(artist_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
+        # Check whether the artist is still attached to any tracks.
         cursor.execute(
             "SELECT COUNT(*) AS TrackCount FROM TrackArtists WHERE ArtistID = %s",
             (artist_id,)
@@ -228,6 +241,7 @@ def delete_artist(artist_id):
 
         result = cursor.fetchone()
 
+        # Block the delete unless the caller explicitly forces it.
         if result['TrackCount'] > 0 and not force:
             return jsonify({
                 'error': 'Artist is linked to tracks. Use ?force=true to remove the artist-track links first.'
@@ -244,6 +258,7 @@ def delete_artist(artist_id):
             (artist_id,)
         )
 
+        # rowcount 0 means no such artist existed to delete.
         if cursor.rowcount == 0:
             conn.rollback()
             return jsonify({'error': 'Artist not found'}), 404
