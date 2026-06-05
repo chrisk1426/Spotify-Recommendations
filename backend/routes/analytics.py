@@ -133,14 +133,17 @@ def bpm_distribution():
     try:
         cursor.execute("""
             SELECT
-                FLOOR(af.Tempo / %s) * %s          AS BucketMin,
-                FLOOR(af.Tempo / %s) * %s + (%s-1) AS BucketMax,
-                COUNT(*)                            AS TrackCount
-            FROM AudioFeatures af
-            WHERE af.Tempo > 0
-            GROUP BY BucketMin
-            ORDER BY BucketMin ASC
-        """, (bucket_size, bucket_size, bucket_size, bucket_size, bucket_size))
+                bucket.BucketIndex * %s          AS BucketMin,
+                bucket.BucketIndex * %s + (%s-1) AS BucketMax,
+                COUNT(*)                         AS TrackCount
+            FROM (
+                SELECT FLOOR(af.Tempo / %s) AS BucketIndex
+                FROM AudioFeatures af
+                WHERE af.Tempo > 0
+            ) AS bucket
+            GROUP BY bucket.BucketIndex
+            ORDER BY bucket.BucketIndex ASC
+        """, (bucket_size, bucket_size, bucket_size, bucket_size))
         return jsonify(cursor.fetchall()), 200
     finally:
         cursor.close()
