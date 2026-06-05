@@ -1,3 +1,9 @@
+# ============================================
+# Final Project
+# Name: Christopher Kang
+# Course: Dartmouth CS 61 Spring 2026
+# ==========================================
+
 # Routes/Endpoints/CRUD Operations for the Tracks resource
 from flask import Blueprint, request, jsonify
 from db import get_connection
